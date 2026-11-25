@@ -10,9 +10,6 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="bg-glow bg-glow-1"></div>
-  <div class="bg-glow bg-glow-2"></div>
-
   <!-- AUTH GATE -->
   <section id="authScreen" class="auth-screen">
     <div class="auth-card">
@@ -172,6 +169,18 @@
       <div class="modal-actions">
         <button type="button" id="cancelResetBtn" class="btn btn-secondary">Отмена</button>
         <button type="button" id="confirmResetBtn" class="btn btn-danger">Да, сбросить всё</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Delete Single Vote Modal -->
+  <div id="deleteVoteModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="deleteVoteModalTitle">
+    <div class="modal-card">
+      <h2 id="deleteVoteModalTitle">Удалить голос участника?</h2>
+      <p id="deleteVoteModalText"></p>
+      <div class="modal-actions">
+        <button type="button" id="cancelDeleteVoteBtn" class="btn btn-secondary">Отмена</button>
+        <button type="button" id="confirmDeleteVoteBtn" class="btn btn-danger">Удалить голос</button>
       </div>
     </div>
   </div>

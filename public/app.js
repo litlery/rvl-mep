@@ -61,6 +61,13 @@
   const resetModal = document.getElementById('resetModal');
   const cancelResetBtn = document.getElementById('cancelResetBtn');
   const confirmResetBtn = document.getElementById('confirmResetBtn');
+
+  const deleteVoteModal = document.getElementById('deleteVoteModal');
+  const deleteVoteModalText = document.getElementById('deleteVoteModalText');
+  const cancelDeleteVoteBtn = document.getElementById('cancelDeleteVoteBtn');
+  const confirmDeleteVoteBtn = document.getElementById('confirmDeleteVoteBtn');
+  let pendingDeleteVote = null;
+
   const toastContainer = document.getElementById('toastContainer');
 
   const PLAY_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="6,4 20,12 6,20"/></svg>';
@@ -199,6 +206,7 @@
     }
 
     const trackMap = getTrackMap();
+    const isAdmin = Boolean(state.user && state.user.isAdmin);
     votersList.innerHTML = state.voters
       .map((voter) => {
         const tgClean = voter.telegram.replace(/^@/, '');
@@ -210,6 +218,10 @@
           })
           .join('');
 
+        const deleteBtnHtml = isAdmin
+          ? `<button type="button" class="voter-delete-btn" data-action="delete-vote" data-vote-id="${escapeHtml(voter.id)}" data-vote-nick="${escapeHtml(voter.nickname)}" data-vote-tg="${escapeHtml(voter.telegram)}">Удалить</button>`
+          : '';
+
         return `
           <div class="voter-row">
             <div class="voter-row-top">
@@ -217,7 +229,10 @@
                 <span class="voter-nick">${escapeHtml(voter.nickname)}</span>
                 <a class="voter-tg" href="https://t.me/${encodeURIComponent(tgClean)}" target="_blank" rel="noopener noreferrer">${escapeHtml(voter.telegram)}</a>
               </div>
-              <span class="voter-time">${escapeHtml(formatDateTime(voter.votedAt))}</span>
+              <div class="voter-right-meta">
+                <span class="voter-time">${escapeHtml(formatDateTime(voter.votedAt))}</span>
+                ${deleteBtnHtml}
+              </div>
             </div>
             <div class="voter-tracks">${trackPills}</div>
           </div>
@@ -733,6 +748,62 @@
     } finally {
       confirmResetBtn.disabled = false;
       confirmResetBtn.textContent = 'Да, сбросить всё';
+    }
+  });
+
+  // Admin Delete Specific User Vote
+  votersList.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action="delete-vote"]');
+    if (!btn || !state.user || !state.user.isAdmin) return;
+    pendingDeleteVote = {
+      id: btn.dataset.voteId,
+      nickname: btn.dataset.voteNick,
+      telegram: btn.dataset.voteTg,
+    };
+    deleteVoteModalText.textContent = `Вы уверены, что хотите удалить голос участника ${pendingDeleteVote.nickname} (${pendingDeleteVote.telegram})? После удаления он сможет проголосовать снова.`;
+    deleteVoteModal.classList.remove('hidden');
+  });
+
+  cancelDeleteVoteBtn.addEventListener('click', () => {
+    pendingDeleteVote = null;
+    deleteVoteModal.classList.add('hidden');
+  });
+
+  deleteVoteModal.addEventListener('click', (e) => {
+    if (e.target === deleteVoteModal) {
+      pendingDeleteVote = null;
+      deleteVoteModal.classList.add('hidden');
+    }
+  });
+
+  confirmDeleteVoteBtn.addEventListener('click', async () => {
+    if (!state.user || !state.user.isAdmin || !pendingDeleteVote) return;
+    confirmDeleteVoteBtn.disabled = true;
+    confirmDeleteVoteBtn.textContent = 'Удаление...';
+    try {
+      const res = await fetch('/api/admin/delete-vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nickname: state.user.nickname,
+          telegram: state.user.telegram,
+          voteId: pendingDeleteVote.id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Не удалось удалить голос.', 'error');
+        return;
+      }
+      deleteVoteModal.classList.add('hidden');
+      showToast(`Голос участника ${pendingDeleteVote.nickname} удалён.`, 'success');
+      pendingDeleteVote = null;
+      applyServerState(data.state);
+    } catch {
+      showToast('Ошибка сети при удалении.', 'error');
+    } finally {
+      confirmDeleteVoteBtn.disabled = false;
+      confirmDeleteVoteBtn.textContent = 'Удалить голос';
     }
   });
 

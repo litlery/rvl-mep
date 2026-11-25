@@ -504,6 +504,29 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    if (req.method === 'POST' && pathname === '/api/admin/delete-vote') {
+      const body = await readJsonBody(req);
+      if (!isAdminIdentity(body.nickname, body.telegram)) {
+        return sendJson(res, 403, { error: 'Недостаточно прав для удаления голоса.' });
+      }
+
+      const voteId = String(body.voteId || '').trim();
+      const idx = votes.findIndex((v) => v.id === voteId);
+      if (idx === -1) {
+        return sendJson(res, 404, { error: 'Голос не найден.' });
+      }
+
+      const [removed] = votes.splice(idx, 1);
+      saveVotes();
+      broadcastUpdate('delete-vote');
+
+      return sendJson(res, 200, {
+        ok: true,
+        removed: { nickname: removed.nickname, telegram: removed.telegram },
+        state: buildPublicState(clientIp),
+      });
+    }
+
     if (req.method === 'GET' && pathname.startsWith('/audio/')) {
       const trackId = decodeURIComponent(pathname.slice('/audio/'.length));
       return serveAudio(req, res, trackId);
