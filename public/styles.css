@@ -485,6 +485,10 @@ body {
   color: var(--text);
 }
 
+.fps-card .track-check {
+  border-radius: 50%;
+}
+
 .fps-card.selected .track-check {
   background: var(--accent);
   border-color: var(--accent);

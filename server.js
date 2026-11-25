@@ -584,6 +584,9 @@ const server = http.createServer(async (req, res) => {
       if (uniqueFps.length === 0) {
         return sendJson(res, 400, { error: 'Выбранный вариант FPS не найден.' });
       }
+      if (uniqueFps.length > 1) {
+        return sendJson(res, 400, { error: 'Можно выбрать только один вариант FPS.' });
+      }
 
       const existingByIp = store.fpsVotes.find((v) => v.ip === clientIp);
       if (existingByIp) {

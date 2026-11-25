@@ -298,7 +298,8 @@
       fpsSubmitRow.classList.add('hidden');
     } else {
       fpsSubmitRow.classList.remove('hidden');
-      fpsSelectedCount.textContent = String(state.selectedFpsIds.size);
+      const chosen = Array.from(state.selectedFpsIds)[0];
+      fpsSelectedCount.textContent = chosen || '—';
       submitFpsBtn.disabled = state.selectedFpsIds.size === 0;
     }
   }
@@ -704,14 +705,15 @@
     fpsVotersHint.textContent = state.fpsVotersOpen ? 'Свернуть' : 'Развернуть';
   });
 
-  // FPS option selection & vote submission
+  // FPS option selection (single-choice) & vote submission
   fpsOptionsList.addEventListener('click', (e) => {
     const card = e.target.closest('.fps-card');
     if (!card || state.myFpsVote) return;
     const fid = card.dataset.fpsId;
     if (state.selectedFpsIds.has(fid)) {
-      state.selectedFpsIds.delete(fid);
+      state.selectedFpsIds.clear();
     } else {
+      state.selectedFpsIds.clear();
       state.selectedFpsIds.add(fid);
     }
     renderFpsSection();
