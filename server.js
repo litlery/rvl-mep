@@ -427,7 +427,7 @@ function serveStatic(req, res, pathname) {
   const ext = path.extname(fullPath).toLowerCase();
   res.writeHead(200, {
     'Content-Type': STATIC_MIME[ext] || 'application/octet-stream',
-    'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=3600',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
   });
   fs.createReadStream(fullPath).pipe(res);
 }
