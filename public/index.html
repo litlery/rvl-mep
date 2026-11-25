@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RVL MEP — Выбор песни для коллаборации</title>
+  <title>RVL MEP — Добро пожаловать! Выбор песни.</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -17,9 +17,9 @@
         <span class="live-dot"></span>
         <span>RVL MEP · Голосование</span>
       </div>
-      <h1>Выбор песни для коллаборации</h1>
+      <h1>Добро пожаловать! Выбор песни.</h1>
       <p class="auth-subtitle">
-        Перед заполнением опросника укажите свой никнейм и Telegram. Можно выбрать сразу несколько треков, голосование доступно один раз с одного IP.
+        Перед заполнением опросника укажите свой никнейм и Telegram юзернейм. К голосованию допускаются только действующие участники мепа, Можно голосовать только один раз. Можно выбрать несколько песен.
       </p>
 
       <div id="authIpNotice" class="alert alert-info hidden"></div>
@@ -69,7 +69,7 @@
             </span>
             <span class="counter-pill" id="totalVotersPill">Проголосовало: 0</span>
           </div>
-          <h1>Выбор песни для коллаборации</h1>
+          <h1>Добро пожаловать! Выбор песни.</h1>
         </div>
 
         <div class="user-panel">
@@ -98,6 +98,56 @@
     </header>
 
     <main class="container">
+      <!-- SEPARATE FPS POLL SECTION -->
+      <section class="poll-section" id="fpsSection" aria-label="Голосование за FPS">
+        <div class="section-header">
+          <h2>Голосование за FPS</h2>
+          <span class="counter-pill" id="totalFpsVotersPill">Проголосовало: 0</span>
+        </div>
+
+        <div id="fpsLockBanner" class="banner hidden"></div>
+
+        <div class="accordion-card" id="fpsVotersAccordion">
+          <button type="button" class="accordion-trigger" id="fpsVotersToggle" aria-expanded="false">
+            <div class="accordion-left">
+              <svg class="accordion-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span class="accordion-title">Кто проголосовал за FPS</span>
+              <span class="accordion-count" id="fpsVotersCountBadge">0</span>
+            </div>
+            <div class="accordion-right">
+              <span class="accordion-hint" id="fpsVotersHint">Развернуть</span>
+              <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
+          </button>
+          <div class="accordion-body hidden" id="fpsVotersBody">
+            <div id="fpsVotersList" class="voters-list"></div>
+          </div>
+        </div>
+
+        <div id="fpsOptionsList" class="fps-grid"></div>
+
+        <div id="fpsSubmitRow" class="fps-submit-row hidden">
+          <span class="selected-counter">Выбрано вариантов FPS: <strong id="fpsSelectedCount">0</strong></span>
+          <button type="button" id="submitFpsBtn" class="btn btn-primary" disabled>
+            Проголосовать за FPS
+          </button>
+        </div>
+      </section>
+
+      <div class="section-divider"></div>
+
+      <!-- SONGS POLL SECTION -->
+      <div class="section-header">
+        <h2>Голосование за песню</h2>
+      </div>
+
       <!-- Status banner (when already voted or IP locked) -->
       <div id="voteLockBanner" class="banner hidden"></div>
 

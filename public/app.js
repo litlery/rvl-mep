@@ -11,6 +11,13 @@
     totalVoters: 0,
     myVote: null,
     selectedIds: new Set(),
+    fpsOptions: [],
+    fpsStats: {},
+    fpsVoters: [],
+    totalFpsVoters: 0,
+    myFpsVote: null,
+    selectedFpsIds: new Set(),
+    fpsVotersOpen: false,
     sortBy: 'default',
     searchQuery: '',
     votersOpen: false,
@@ -48,6 +55,19 @@
   const votersHint = document.getElementById('votersHint');
   const votersBody = document.getElementById('votersBody');
   const votersList = document.getElementById('votersList');
+
+  const totalFpsVotersPill = document.getElementById('totalFpsVotersPill');
+  const fpsLockBanner = document.getElementById('fpsLockBanner');
+  const fpsVotersAccordion = document.getElementById('fpsVotersAccordion');
+  const fpsVotersToggle = document.getElementById('fpsVotersToggle');
+  const fpsVotersCountBadge = document.getElementById('fpsVotersCountBadge');
+  const fpsVotersHint = document.getElementById('fpsVotersHint');
+  const fpsVotersBody = document.getElementById('fpsVotersBody');
+  const fpsVotersList = document.getElementById('fpsVotersList');
+  const fpsOptionsList = document.getElementById('fpsOptionsList');
+  const fpsSubmitRow = document.getElementById('fpsSubmitRow');
+  const fpsSelectedCount = document.getElementById('fpsSelectedCount');
+  const submitFpsBtn = document.getElementById('submitFpsBtn');
 
   const searchInput = document.getElementById('searchInput');
   const sortButtons = document.querySelectorAll('.sort-btn');
@@ -145,8 +165,15 @@
     state.totalVoters = data.totalVoters || 0;
     state.myVote = data.myVote || null;
 
+    state.fpsOptions = data.fpsOptions || [];
+    state.fpsStats = data.fpsStats || {};
+    state.fpsVoters = data.fpsVoters || [];
+    state.totalFpsVoters = data.totalFpsVoters || 0;
+    state.myFpsVote = data.myFpsVote || null;
+
     if (data.reason === 'reset') {
       state.selectedIds.clear();
+      state.selectedFpsIds.clear();
       showToast('Администратор сбросил все ответы. Можно голосовать заново.', 'info');
     }
 
@@ -161,6 +188,7 @@
       renderHeaderStats();
       renderVoteLockBanner();
       renderVotersList();
+      renderFpsSection();
       if (tracksChanged || tracksList.children.length === 0) {
         renderTracksFull();
       } else {
@@ -173,6 +201,106 @@
   function renderHeaderStats() {
     totalVotersPill.textContent = `Проголосовало: ${state.totalVoters}`;
     votersCountBadge.textContent = String(state.totalVoters);
+    totalFpsVotersPill.textContent = `Проголосовало: ${state.totalFpsVoters}`;
+    fpsVotersCountBadge.textContent = String(state.totalFpsVoters);
+  }
+
+  function renderFpsSection() {
+    // Banner
+    if (!state.myFpsVote) {
+      fpsLockBanner.classList.add('hidden');
+    } else {
+      const isSame =
+        state.user &&
+        state.myFpsVote.telegram.toLowerCase() === state.user.telegram.toLowerCase();
+      if (isSame) {
+        fpsLockBanner.className = 'banner banner-success';
+        fpsLockBanner.innerHTML = `<span><strong>Ваш голос за FPS учтён!</strong> (${escapeHtml(state.myFpsVote.fpsIds.join(', '))})</span>`;
+      } else {
+        fpsLockBanner.className = 'banner banner-warning';
+        fpsLockBanner.innerHTML = `<span><strong>Голосование за FPS с этого IP недоступно:</strong> ранее проголосовал(а) <strong>${escapeHtml(state.myFpsVote.nickname)}</strong> (${escapeHtml(state.myFpsVote.telegram)}).</span>`;
+      }
+      fpsLockBanner.classList.remove('hidden');
+    }
+
+    // Voters list
+    const isAdmin = Boolean(state.user && state.user.isAdmin);
+    if (state.fpsVoters.length === 0) {
+      fpsVotersList.innerHTML = '<div class="voters-empty">За FPS пока никто не проголосовал.</div>';
+    } else {
+      fpsVotersList.innerHTML = state.fpsVoters
+        .map((voter) => {
+          const tgClean = voter.telegram.replace(/^@/, '');
+          const pills = voter.fpsIds
+            .map((fid) => `<span class="voter-track-pill">${escapeHtml(fid)}</span>`)
+            .join('');
+          const delBtn = isAdmin
+            ? `<button type="button" class="voter-delete-btn" data-action="delete-vote" data-vote-kind="fps" data-vote-id="${escapeHtml(voter.id)}" data-vote-nick="${escapeHtml(voter.nickname)}" data-vote-tg="${escapeHtml(voter.telegram)}">Удалить</button>`
+            : '';
+          return `
+            <div class="voter-row">
+              <div class="voter-row-top">
+                <div class="voter-identity">
+                  <span class="voter-nick">${escapeHtml(voter.nickname)}</span>
+                  <a class="voter-tg" href="https://t.me/${encodeURIComponent(tgClean)}" target="_blank" rel="noopener noreferrer">${escapeHtml(voter.telegram)}</a>
+                </div>
+                <div class="voter-right-meta">
+                  <span class="voter-time">${escapeHtml(formatDateTime(voter.votedAt))}</span>
+                  ${delBtn}
+                </div>
+              </div>
+              <div class="voter-tracks">${pills}</div>
+            </div>
+          `;
+        })
+        .join('');
+    }
+
+    // Options grid
+    const isLocked = Boolean(state.myFpsVote);
+    const mySet = new Set(state.myFpsVote ? state.myFpsVote.fpsIds : []);
+    fpsOptionsList.innerHTML = state.fpsOptions
+      .map((opt) => {
+        const st = state.fpsStats[opt.id] || { count: 0, percent: 0 };
+        const isSelected = !isLocked && state.selectedFpsIds.has(opt.id);
+        const isMyVoted = isLocked && mySet.has(opt.id);
+        const cls = [
+          'fps-card',
+          isSelected ? 'selected' : '',
+          isMyVoted ? 'voted-mine' : '',
+          isLocked ? 'locked' : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
+        return `
+          <div class="${cls}" data-fps-id="${escapeHtml(opt.id)}">
+            <div class="fps-card-top">
+              <div class="fps-left">
+                <span class="track-check" aria-hidden="true">${CHECK_SVG}</span>
+                <span class="fps-label">${escapeHtml(opt.label)}</span>
+              </div>
+              ${isMyVoted ? '<span class="my-choice-tag">Ваш выбор</span>' : ''}
+            </div>
+            <div class="fps-card-meta">
+              <span class="stat-percent">${formatPercent(st.percent)}</span>
+              <span class="stat-count">${pluralPeople(st.count)}</span>
+            </div>
+            <div class="vote-bar-bg">
+              <div class="vote-bar-fill" style="width: ${st.percent}%"></div>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+
+    // Submit row
+    if (!state.user || isLocked) {
+      fpsSubmitRow.classList.add('hidden');
+    } else {
+      fpsSubmitRow.classList.remove('hidden');
+      fpsSelectedCount.textContent = String(state.selectedFpsIds.size);
+      submitFpsBtn.disabled = state.selectedFpsIds.size === 0;
+    }
   }
 
   function renderVoteLockBanner() {
@@ -559,13 +687,66 @@
     syncActivePlayerUI();
   });
 
-  // Accordion toggle
+  // Accordion toggles
   votersToggle.addEventListener('click', () => {
     state.votersOpen = !state.votersOpen;
     votersAccordion.classList.toggle('open', state.votersOpen);
     votersBody.classList.toggle('hidden', !state.votersOpen);
     votersToggle.setAttribute('aria-expanded', state.votersOpen ? 'true' : 'false');
     votersHint.textContent = state.votersOpen ? 'Свернуть' : 'Развернуть';
+  });
+
+  fpsVotersToggle.addEventListener('click', () => {
+    state.fpsVotersOpen = !state.fpsVotersOpen;
+    fpsVotersAccordion.classList.toggle('open', state.fpsVotersOpen);
+    fpsVotersBody.classList.toggle('hidden', !state.fpsVotersOpen);
+    fpsVotersToggle.setAttribute('aria-expanded', state.fpsVotersOpen ? 'true' : 'false');
+    fpsVotersHint.textContent = state.fpsVotersOpen ? 'Свернуть' : 'Развернуть';
+  });
+
+  // FPS option selection & vote submission
+  fpsOptionsList.addEventListener('click', (e) => {
+    const card = e.target.closest('.fps-card');
+    if (!card || state.myFpsVote) return;
+    const fid = card.dataset.fpsId;
+    if (state.selectedFpsIds.has(fid)) {
+      state.selectedFpsIds.delete(fid);
+    } else {
+      state.selectedFpsIds.add(fid);
+    }
+    renderFpsSection();
+  });
+
+  submitFpsBtn.addEventListener('click', async () => {
+    if (!state.user || state.selectedFpsIds.size === 0 || state.myFpsVote) return;
+    submitFpsBtn.disabled = true;
+    submitFpsBtn.textContent = 'Отправка...';
+    try {
+      const res = await fetch('/api/vote-fps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nickname: state.user.nickname,
+          telegram: state.user.telegram,
+          fpsIds: Array.from(state.selectedFpsIds),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Не удалось отправить голос за FPS.', 'error');
+        submitFpsBtn.disabled = false;
+        submitFpsBtn.textContent = 'Проголосовать за FPS';
+        return;
+      }
+      state.selectedFpsIds.clear();
+      applyServerState(data.state);
+      showToast('Ваш голос за FPS записан!', 'success');
+    } catch {
+      showToast('Ошибка сети. Попробуйте ещё раз.', 'error');
+    } finally {
+      submitFpsBtn.textContent = 'Проголосовать за FPS';
+      renderFpsSection();
+    }
   });
 
   // Search & Sort
@@ -646,6 +827,7 @@
     renderHeaderStats();
     renderVoteLockBanner();
     renderVotersList();
+    renderFpsSection();
     renderTracksFull();
     renderSubmitBar();
   }
@@ -672,6 +854,9 @@
       }
       if (data.myVote) {
         state.myVote = data.myVote;
+      }
+      if (data.myFpsVote) {
+        state.myFpsVote = data.myFpsVote;
       }
       enterPollAs({
         nickname: data.nickname,
@@ -751,18 +936,24 @@
     }
   });
 
-  // Admin Delete Specific User Vote
-  votersList.addEventListener('click', (e) => {
+  // Admin Delete Specific User Vote (both song and fps lists)
+  function handleDeleteVoteClick(e) {
     const btn = e.target.closest('[data-action="delete-vote"]');
     if (!btn || !state.user || !state.user.isAdmin) return;
+    const kind = btn.dataset.voteKind === 'fps' ? 'fps' : 'song';
     pendingDeleteVote = {
       id: btn.dataset.voteId,
+      kind,
       nickname: btn.dataset.voteNick,
       telegram: btn.dataset.voteTg,
     };
-    deleteVoteModalText.textContent = `Вы уверены, что хотите удалить голос участника ${pendingDeleteVote.nickname} (${pendingDeleteVote.telegram})? После удаления он сможет проголосовать снова.`;
+    const pollLabel = kind === 'fps' ? 'голос за FPS участника' : 'голос за песню участника';
+    deleteVoteModalText.textContent = `Вы уверены, что хотите удалить ${pollLabel} ${pendingDeleteVote.nickname} (${pendingDeleteVote.telegram})? После удаления он сможет проголосовать снова.`;
     deleteVoteModal.classList.remove('hidden');
-  });
+  }
+
+  votersList.addEventListener('click', handleDeleteVoteClick);
+  fpsVotersList.addEventListener('click', handleDeleteVoteClick);
 
   cancelDeleteVoteBtn.addEventListener('click', () => {
     pendingDeleteVote = null;
@@ -788,6 +979,7 @@
           nickname: state.user.nickname,
           telegram: state.user.telegram,
           voteId: pendingDeleteVote.id,
+          kind: pendingDeleteVote.kind,
         }),
       });
       const data = await res.json();

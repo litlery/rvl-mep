@@ -16,6 +16,13 @@ const TRACKS_FILE = path.join(ROOT_DIR, 'tracks.json');
 const ADMIN_NICKNAME = 'litlery';
 const ADMIN_TELEGRAM = '@melight';
 
+const FPS_OPTIONS = [
+  { id: '24fps', label: '24fps' },
+  { id: '30fps', label: '30fps' },
+  { id: '60fps', label: '60fps' },
+];
+const FPS_BY_ID = new Map(FPS_OPTIONS.map((f) => [f.id, f]));
+
 const AUDIO_MIME = {
   '.mp3': 'audio/mpeg',
   '.m4a': 'audio/mp4',
@@ -97,27 +104,33 @@ function loadTracks() {
 const TRACKS = loadTracks();
 const TRACK_BY_ID = new Map(TRACKS.map((t) => [t.id, t]));
 
-function loadVotes() {
+function loadStore() {
   ensureDataDir();
   if (!fs.existsSync(VOTES_FILE)) {
-    return [];
+    return { songVotes: [], fpsVotes: [] };
   }
   try {
     const raw = fs.readFileSync(VOTES_FILE, 'utf8');
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (Array.isArray(parsed)) {
+      return { songVotes: parsed, fpsVotes: [] };
+    }
+    return {
+      songVotes: Array.isArray(parsed.songVotes) ? parsed.songVotes : [],
+      fpsVotes: Array.isArray(parsed.fpsVotes) ? parsed.fpsVotes : [],
+    };
   } catch (err) {
     console.error('Failed to parse votes.json:', err.message);
-    return [];
+    return { songVotes: [], fpsVotes: [] };
   }
 }
 
-let votes = loadVotes();
+let store = loadStore();
 
 function saveVotes() {
   ensureDataDir();
   const tmpFile = `${VOTES_FILE}.tmp`;
-  fs.writeFileSync(tmpFile, JSON.stringify(votes, null, 2), 'utf8');
+  fs.writeFileSync(tmpFile, JSON.stringify(store, null, 2), 'utf8');
   fs.renameSync(tmpFile, VOTES_FILE);
 }
 
@@ -181,12 +194,14 @@ function isAdminIdentity(nickname, telegram) {
 }
 
 function buildPublicState(clientIp) {
-  const totalVoters = votes.length;
+  // Song poll state
+  const songVotes = store.songVotes;
+  const totalVoters = songVotes.length;
   const counts = {};
   for (const t of TRACKS) {
     counts[t.id] = 0;
   }
-  for (const v of votes) {
+  for (const v of songVotes) {
     for (const tid of v.trackIds) {
       if (counts[tid] !== undefined) {
         counts[tid] += 1;
@@ -201,7 +216,7 @@ function buildPublicState(clientIp) {
     stats[t.id] = { count, percent };
   }
 
-  const publicVoters = [...votes]
+  const publicVoters = [...songVotes]
     .sort((a, b) => new Date(b.votedAt) - new Date(a.votedAt))
     .map((v) => ({
       id: v.id,
@@ -211,13 +226,55 @@ function buildPublicState(clientIp) {
       trackIds: v.trackIds,
     }));
 
-  const ownVoteRecord = clientIp ? votes.find((v) => v.ip === clientIp) : null;
+  const ownVoteRecord = clientIp ? songVotes.find((v) => v.ip === clientIp) : null;
   const myVote = ownVoteRecord
     ? {
         nickname: ownVoteRecord.nickname,
         telegram: ownVoteRecord.telegram,
         votedAt: ownVoteRecord.votedAt,
         trackIds: ownVoteRecord.trackIds,
+      }
+    : null;
+
+  // FPS poll state
+  const fpsVotes = store.fpsVotes;
+  const totalFpsVoters = fpsVotes.length;
+  const fpsCounts = {};
+  for (const f of FPS_OPTIONS) {
+    fpsCounts[f.id] = 0;
+  }
+  for (const v of fpsVotes) {
+    for (const fid of v.fpsIds) {
+      if (fpsCounts[fid] !== undefined) {
+        fpsCounts[fid] += 1;
+      }
+    }
+  }
+
+  const fpsStats = {};
+  for (const f of FPS_OPTIONS) {
+    const count = fpsCounts[f.id] || 0;
+    const percent = totalFpsVoters > 0 ? Math.round((count / totalFpsVoters) * 1000) / 10 : 0;
+    fpsStats[f.id] = { count, percent };
+  }
+
+  const publicFpsVoters = [...fpsVotes]
+    .sort((a, b) => new Date(b.votedAt) - new Date(a.votedAt))
+    .map((v) => ({
+      id: v.id,
+      nickname: v.nickname,
+      telegram: v.telegram,
+      votedAt: v.votedAt,
+      fpsIds: v.fpsIds,
+    }));
+
+  const ownFpsRecord = clientIp ? fpsVotes.find((v) => v.ip === clientIp) : null;
+  const myFpsVote = ownFpsRecord
+    ? {
+        nickname: ownFpsRecord.nickname,
+        telegram: ownFpsRecord.telegram,
+        votedAt: ownFpsRecord.votedAt,
+        fpsIds: ownFpsRecord.fpsIds,
       }
     : null;
 
@@ -232,6 +289,11 @@ function buildPublicState(clientIp) {
     voters: publicVoters,
     totalVoters,
     myVote,
+    fpsOptions: FPS_OPTIONS,
+    fpsStats,
+    fpsVoters: publicFpsVoters,
+    totalFpsVoters,
+    myFpsVote,
   };
 }
 
@@ -407,8 +469,12 @@ const server = http.createServer(async (req, res) => {
       }
 
       const isAdmin = isAdminIdentity(checked.nickname, checked.telegram);
-      const existingByIp = votes.find((v) => v.ip === clientIp);
-      const existingByTg = votes.find(
+      const existingByIp = store.songVotes.find((v) => v.ip === clientIp);
+      const existingByTg = store.songVotes.find(
+        (v) => v.telegram.toLowerCase() === checked.telegram.toLowerCase()
+      );
+      const existingFpsByIp = store.fpsVotes.find((v) => v.ip === clientIp);
+      const existingFpsByTg = store.fpsVotes.find(
         (v) => v.telegram.toLowerCase() === checked.telegram.toLowerCase()
       );
 
@@ -434,6 +500,21 @@ const server = http.createServer(async (req, res) => {
               trackIds: existingByTg.trackIds,
             }
           : null,
+        myFpsVote: existingFpsByIp
+          ? {
+              nickname: existingFpsByIp.nickname,
+              telegram: existingFpsByIp.telegram,
+              votedAt: existingFpsByIp.votedAt,
+              fpsIds: existingFpsByIp.fpsIds,
+            }
+          : existingFpsByTg
+          ? {
+              nickname: existingFpsByTg.nickname,
+              telegram: existingFpsByTg.telegram,
+              votedAt: existingFpsByTg.votedAt,
+              fpsIds: existingFpsByTg.fpsIds,
+            }
+          : null,
       });
     }
 
@@ -453,14 +534,14 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { error: 'Выбранные треки не найдены.' });
       }
 
-      const existingByIp = votes.find((v) => v.ip === clientIp);
+      const existingByIp = store.songVotes.find((v) => v.ip === clientIp);
       if (existingByIp) {
         return sendJson(res, 409, {
           error: `С вашего IP-адреса уже проголосовали (${existingByIp.nickname}, ${existingByIp.telegram}). Повторное голосование или голосование за другого человека с одного IP запрещено.`,
         });
       }
 
-      const existingByTg = votes.find(
+      const existingByTg = store.songVotes.find(
         (v) => v.telegram.toLowerCase() === checked.telegram.toLowerCase()
       );
       if (existingByTg) {
@@ -478,9 +559,60 @@ const server = http.createServer(async (req, res) => {
         votedAt: new Date().toISOString(),
       };
 
-      votes.push(voteRecord);
+      store.songVotes.push(voteRecord);
       saveVotes();
       broadcastUpdate('vote');
+
+      return sendJson(res, 200, {
+        ok: true,
+        state: buildPublicState(clientIp),
+      });
+    }
+
+    if (req.method === 'POST' && pathname === '/api/vote-fps') {
+      const body = await readJsonBody(req);
+      const checked = validateIdentity(body.nickname, body.telegram);
+      if (checked.error) {
+        return sendJson(res, 400, { error: checked.error });
+      }
+
+      if (!Array.isArray(body.fpsIds) || body.fpsIds.length === 0) {
+        return sendJson(res, 400, { error: 'Выберите хотя бы один вариант FPS.' });
+      }
+
+      const uniqueFps = [...new Set(body.fpsIds)].filter((id) => FPS_BY_ID.has(id));
+      if (uniqueFps.length === 0) {
+        return sendJson(res, 400, { error: 'Выбранный вариант FPS не найден.' });
+      }
+
+      const existingByIp = store.fpsVotes.find((v) => v.ip === clientIp);
+      if (existingByIp) {
+        return sendJson(res, 409, {
+          error: `С вашего IP-адреса уже проголосовали за FPS (${existingByIp.nickname}, ${existingByIp.telegram}). Повторное голосование с одного IP запрещено.`,
+        });
+      }
+
+      const existingByTg = store.fpsVotes.find(
+        (v) => v.telegram.toLowerCase() === checked.telegram.toLowerCase()
+      );
+      if (existingByTg) {
+        return sendJson(res, 409, {
+          error: `Пользователь с Telegram ${existingByTg.telegram} уже проголосовал за FPS.`,
+        });
+      }
+
+      const voteRecord = {
+        id: crypto.randomUUID(),
+        nickname: checked.nickname,
+        telegram: checked.telegram,
+        ip: clientIp,
+        fpsIds: uniqueFps,
+        votedAt: new Date().toISOString(),
+      };
+
+      store.fpsVotes.push(voteRecord);
+      saveVotes();
+      broadcastUpdate('vote-fps');
 
       return sendJson(res, 200, {
         ok: true,
@@ -494,7 +626,8 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 403, { error: 'Недостаточно прав для сброса результатов.' });
       }
 
-      votes = [];
+      store.songVotes = [];
+      store.fpsVotes = [];
       saveVotes();
       broadcastUpdate('reset');
 
@@ -511,12 +644,14 @@ const server = http.createServer(async (req, res) => {
       }
 
       const voteId = String(body.voteId || '').trim();
-      const idx = votes.findIndex((v) => v.id === voteId);
+      const kind = body.kind === 'fps' ? 'fps' : 'song';
+      const list = kind === 'fps' ? store.fpsVotes : store.songVotes;
+      const idx = list.findIndex((v) => v.id === voteId);
       if (idx === -1) {
         return sendJson(res, 404, { error: 'Голос не найден.' });
       }
 
-      const [removed] = votes.splice(idx, 1);
+      const [removed] = list.splice(idx, 1);
       saveVotes();
       broadcastUpdate('delete-vote');
 
