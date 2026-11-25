@@ -1,0 +1,12 @@
+{
+  "name": "rvl-mep-song-poll",
+  "version": "1.0.0",
+  "description": "Интерактивный сайт-опросник для выбора песни на коллаборацию (RVL MEP)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

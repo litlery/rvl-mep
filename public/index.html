@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RVL MEP — Выбор песни для коллаборации</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <!-- AUTH GATE -->
+  <section id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <div class="brand-badge">
+        <span class="live-dot"></span>
+        <span>RVL MEP · Голосование</span>
+      </div>
+      <h1>Выбор песни для коллаборации</h1>
+      <p class="auth-subtitle">
+        Перед заполнением опросника укажите свой никнейм и Telegram. Можно выбрать сразу несколько треков, голосование доступно один раз с одного IP.
+      </p>
+
+      <div id="authIpNotice" class="alert alert-info hidden"></div>
+
+      <form id="authForm" class="auth-form" novalidate>
+        <div class="field">
+          <label for="nicknameInput">Никнейм</label>
+          <input
+            id="nicknameInput"
+            name="nickname"
+            type="text"
+            placeholder="Например, Alex"
+            autocomplete="nickname"
+            maxlength="40"
+            required
+          />
+        </div>
+        <div class="field">
+          <label for="telegramInput">Юзернейм Telegram</label>
+          <input
+            id="telegramInput"
+            name="telegram"
+            type="text"
+            placeholder="@username"
+            autocomplete="username"
+            maxlength="40"
+            required
+          />
+        </div>
+        <div id="authError" class="form-error hidden"></div>
+        <button type="submit" id="authSubmitBtn" class="btn btn-primary btn-full">
+          Перейти к опросу
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <!-- MAIN POLL APP -->
+  <div id="pollApp" class="app-shell hidden">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="topbar-title">
+          <div class="brand-row">
+            <span class="live-pill" id="liveStatus">
+              <span class="live-dot"></span>
+              Live-статистика
+            </span>
+            <span class="counter-pill" id="totalVotersPill">Проголосовало: 0</span>
+          </div>
+          <h1>Выбор песни для коллаборации</h1>
+        </div>
+
+        <div class="user-panel">
+          <div class="user-chip">
+            <div class="user-avatar" id="userAvatar">U</div>
+            <div class="user-meta">
+              <div class="user-nick-row">
+                <span id="userNickDisplay" class="user-nick"></span>
+                <span id="adminBadge" class="admin-badge hidden">ADMIN</span>
+              </div>
+              <span id="userTgDisplay" class="user-tg"></span>
+            </div>
+            <button type="button" id="switchUserBtn" class="icon-btn" title="Сменить аккаунт">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </button>
+          </div>
+          <button type="button" id="adminResetBtn" class="btn btn-danger hidden">
+            Сбросить все ответы
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <!-- Status banner (when already voted or IP locked) -->
+      <div id="voteLockBanner" class="banner hidden"></div>
+
+      <!-- Collapsible Voters History -->
+      <section class="accordion-card" id="votersAccordion">
+        <button type="button" class="accordion-trigger" id="votersToggle" aria-expanded="false">
+          <div class="accordion-left">
+            <svg class="accordion-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            <span class="accordion-title">Кто проголосовал</span>
+            <span class="accordion-count" id="votersCountBadge">0</span>
+          </div>
+          <div class="accordion-right">
+            <span class="accordion-hint" id="votersHint">Развернуть</span>
+            <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </button>
+        <div class="accordion-body hidden" id="votersBody">
+          <div id="votersList" class="voters-list"></div>
+        </div>
+      </section>
+
+      <!-- Controls: Search + Sort -->
+      <section class="controls-bar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input id="searchInput" type="search" placeholder="Поиск по названию или автору..." />
+        </div>
+        <div class="sort-group" role="group" aria-label="Сортировка">
+          <button type="button" class="sort-btn active" data-sort="default">По порядку</button>
+          <button type="button" class="sort-btn" data-sort="votes">По популярности</button>
+        </div>
+      </section>
+
+      <!-- Track List -->
+      <section id="tracksList" class="tracks-list" aria-label="Список песен"></section>
+    </main>
+
+    <!-- Sticky Submit Bar -->
+    <div id="submitBar" class="submit-bar hidden">
+      <div class="submit-bar-inner">
+        <div class="submit-info">
+          <span class="selected-counter">Выбрано песен: <strong id="selectedCount">0</strong></span>
+          <button type="button" id="clearSelectionBtn" class="link-btn hidden">Снять выбор</button>
+        </div>
+        <button type="button" id="submitVoteBtn" class="btn btn-primary" disabled>
+          Отправить голос
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Reset Confirmation Modal -->
+  <div id="resetModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="resetModalTitle">
+    <div class="modal-card">
+      <h2 id="resetModalTitle">Сбросить все ответы?</h2>
+      <p>
+        Все голоса участников и история голосования будут полностью удалены, а ограничения по IP сброшены. Это действие нельзя отменить.
+      </p>
+      <div class="modal-actions">
+        <button type="button" id="cancelResetBtn" class="btn btn-secondary">Отмена</button>
+        <button type="button" id="confirmResetBtn" class="btn btn-danger">Да, сбросить всё</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notifications -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
